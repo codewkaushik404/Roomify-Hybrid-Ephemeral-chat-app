@@ -1,0 +1,26 @@
+{
+  "name": "web-sockets",
+  "version": "1.0.0",
+  "description": "Understanding web sockets protocol by writing some code ",
+  "homepage": "https://github.com/codewkaushik404/websockets-learning#readme",
+  "bugs": {
+    "url": "https://github.com/codewkaushik404/websockets-learning/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codewkaushik404/websockets-learning.git"
+  },
+  "license": "ISC",
+  "author": "Kaushik K.S.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "mongoose": "^9.3.3",
+    "nodemon": "^3.1.14",
+    "ws": "^8.20.0"
+  }
+}
