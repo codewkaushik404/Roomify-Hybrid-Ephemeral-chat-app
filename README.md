@@ -1,3 +1,4 @@
+## Author - Kaushik K S  
 # Roomify – Hybrid Ephemeral Chat Application
 
 Roomify is a real-time chat application built using native WebSockets that supports room-based communication with a hybrid ephemeral messaging model. Users can create and join rooms, exchange messages, and interact in real time while messages are retained only for the lifetime of the room.
@@ -167,5 +168,3 @@ cd frontend
 npm install
 npm run dev
 ```
-
-## Author - Kaushik K S  
