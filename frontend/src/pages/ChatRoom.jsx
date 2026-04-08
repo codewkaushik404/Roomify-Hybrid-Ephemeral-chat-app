@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect} from "react";
 import Avatar from "../components/ui/Avatar";
 import {SquareDashedMousePointer, LogOut} from "lucide-react"
 import Toast from "../components/Toast";
@@ -80,9 +80,7 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
     setInput("");
   };
 
-  const existingRoomUsers = useMemo(()=>{
-    return [...new Set(messages.map((m) => m.sender))]
-  }, [messages]);
+  const existingRoomUsers = [...new Set(messages.map((m) => m.sender))];
 
   return (
     <div
@@ -142,7 +140,7 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
                 style={{ background: "#2A9D8F" }}
               />
               <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", fontFamily: "'DM Mono', monospace" }}>
-                {existingRoomUsers?.length} members online 
+                {existingRoomUsers?.length + 1} members online 
               </span>
             </div>
           </div>
