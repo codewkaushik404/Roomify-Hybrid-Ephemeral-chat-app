@@ -1,13 +1,24 @@
 import {WebSocketServer, WebSocket} from "ws";
 import sendError from "./src/helper/sendError.js";
-const wss = new WebSocketServer({port: process.env.RELAY_WS_SERVER_PORT || 8080 });
-console.log("Relay Server is running");
+import sendJson from "./src/helper/sendJson.js";
 
 const servers = new Map();
+
+const wss = new WebSocketServer({port: process.env.RELAY_PORT || 8080 });
 
 wss.on("connection", function(socket){
     servers.set(socket, new Set());
     
+    socket.on("error", ()=> {
+        if(socket.readyState === WebSocket.CLOSED){
+            socket.terminate();
+            return ;
+        }
+        socket.close();
+    });
+
+    socket.on("close", ()=> servers.delete(socket));
+
     socket.on("message", (message) =>{
         let parsedMessage;
         try {
@@ -17,23 +28,36 @@ wss.on("connection", function(socket){
         }
 
         if(parsedMessage.type === "register_room"){
-            const roomId = parsedMessage.payload.roomId;
-            servers.get(socket).add(roomId);
+            const roomId = parsedMessage.payload?.roomId;
+            if(!roomId){
+                return sendError(socket, "Missing roomId in payload", "error");
+            }
+            let existingRooms = servers.get(socket);
+            if(!existingRooms.has(roomId)) existingRooms.add(roomId);
         }
 
         else if(parsedMessage.type === "delete_room"){
-            const roomId = parsedMessage.payload.roomId;
-            servers.get(socket).delete(roomId);
+            const roomId = parsedMessage.payload?.roomId;
+            if(!roomId){
+                return sendError(socket, "Missing roomId in payload", "error");
+            }
+            let existingRooms = servers.get(socket);
+            if(existingRooms.has(roomId)) existingRooms.delete(roomId);
         }
 
-        else if(parsedMessage.type === "forward_message"){
+        else if(parsedMessage.type === "relay_message"){
             const {message, roomId } = parsedMessage.payload;
-            servers.forEach((roomIds, serverSocket) => {
-                if(serverSocket.readyState !== WebSocket.OPEN || !roomIds.has(roomId)) return;
-                serverSocket.send(JSON.stringify({type: "relay_message", payload: {message, roomId}}));
-            })    
+
+            if(!message || !roomId){
+                return sendError(socket, "Missing roomId or message in payload", "error");
+            }
+
+            for(const [serverSocket, roomIds] of servers){
+                if(roomIds.has(roomId)) {
+                    sendJson(serverSocket, {type: "message_relayed", payload: {message, roomId}});
+                }
+            }   
         }
     })
 
-    socket.on("close", ()=> servers.delete(socket));
 })
