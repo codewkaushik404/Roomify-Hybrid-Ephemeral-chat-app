@@ -1,8 +1,7 @@
 import { WebSocket } from "ws";
-import sendJson from "../helper/sendJson";
-import { rooms } from "../services/room";
+import sendJson from "../helper/sendJson.js";
 
-export default function createWebSocketClient(){
+export default function createWebSocketClient(rooms){
     const ws = new WebSocket(process.env.RELAY_URL);
 
     return new Promise((resolve, reject) => {

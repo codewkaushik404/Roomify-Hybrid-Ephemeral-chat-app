@@ -1,5 +1,3 @@
-import sendError from "./sendError.js";
-
 export function isValidRoom(rooms, roomId){
     if(!rooms.has(roomId)) return false;
     return true;

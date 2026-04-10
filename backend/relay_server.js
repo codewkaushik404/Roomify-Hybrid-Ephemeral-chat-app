@@ -5,6 +5,7 @@ import sendJson from "./src/helper/sendJson.js";
 const servers = new Map();
 
 const wss = new WebSocketServer({port: process.env.RELAY_PORT || 8080 });
+console.log("Relay server is running");
 
 wss.on("connection", function(socket){
     servers.set(socket, new Set());

@@ -1,5 +1,5 @@
 import { WebSocket } from "ws";
-import sendJson from "./sendJson";
+import sendJson from "./sendJson.js";
 
 export default function syncRoomsWithRelay(ws, input, roomId){
     if(ws.readyState !== WebSocket.OPEN) return ;

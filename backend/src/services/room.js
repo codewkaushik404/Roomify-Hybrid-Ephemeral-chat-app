@@ -4,19 +4,18 @@ import sendError from "../helper/sendError.js";
 import sendJson from "../helper/sendJson.js";
 import { createMessage, deleteMessages, fetchMessages } from "../services/messages.js";
 import syncRoomsWithRelay from "../helper/syncRooms.js";
-import createWebSocketClient from "../ws/client.js";
 
 export const rooms = new Map();
+export let relaySocket = null;
 
-let relaySocket;
-createWebSocketClient()
-.then((ws) => {
-    relaySocket = ws
-})
-.catch((err) => {
-    console.log("Connection as client to relay_server failed");
-    process.exit(1);
-})
+export async function initializeRelaySocket(createWebSocketClient) {
+    try {
+        relaySocket = await createWebSocketClient();
+    } catch(err) {
+        console.log("Connection as client to relay_server failed");
+        process.exit(1);
+    }
+}
 
 //payload : {username} 
 // relay-payload: {roomId}
