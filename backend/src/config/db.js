@@ -4,8 +4,8 @@ export default async function dbConnection(){
     try{
         const db = await mongoose.connect(process.env.MONGODB_URI);
         console.log(`Connected to DB: ${db.connection.name} successfully`)
+        return db;
     }catch(err){
-        console.log("Mongo DB connection failed", err.message);
-        process.exit(1);
+        throw new Error(`MongoDB connection failed: ${err.message}`, { cause: err });
     }
 }
