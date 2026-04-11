@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import Toast from "./Toast";
+import { useRecoilState } from "recoil";
+import { usernameAtom } from "../store/atoms/usernameAtom";
 
-export default function UsernameModal({ setRoomId, setUsername, setOpen, usernameRef, inputRef, socketRef}) {
+
+export default function UsernameModal({ setRoomId, setOpen, inputRef, socketRef}) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [username, setUsername] = useRecoilState(usernameAtom);
 
   useEffect(() => {
      const socket = socketRef.current;
@@ -14,7 +18,6 @@ export default function UsernameModal({ setRoomId, setUsername, setOpen, usernam
 
       if(parsedMessage.type === "room_joined"){
         setRoomId(parsedMessage.payload?.roomId);
-        setUsername(usernameRef.current.value.trim());
         setOpen(false);
         setIsLoading(false);
         setError("");
@@ -27,12 +30,12 @@ export default function UsernameModal({ setRoomId, setUsername, setOpen, usernam
           Toast(message, type);
         }
         setIsLoading(false);
+        setOpen(false);
       }
      }
 
      function handleClose(){
       setRoomId("");
-      setUsername("");
       socketRef.current = null;
       setOpen(false);
       setIsLoading(false);
@@ -45,13 +48,12 @@ export default function UsernameModal({ setRoomId, setUsername, setOpen, usernam
       socket.removeEventListener("message", handleMessage);
       socket.removeEventListener("close", handleClose); 
     };
-  }, [socketRef, setRoomId, setUsername, setOpen]);
+  }, [socketRef, setRoomId, setOpen]);
 
   function handleSubmit(){
     const socket = socketRef.current;
     const roomId = inputRef.current.value.trim();
-    const username = usernameRef.current.value.trim();
-
+    const trimmedUsername = username.trim();
     // Validation
     if(!socket) {
       setError("Socket not connected");
@@ -61,18 +63,19 @@ export default function UsernameModal({ setRoomId, setUsername, setOpen, usernam
       setError("Room ID is required");
       return Toast("Room ID is required", "warn");
     }
-    if(!username) {
+    if(!trimmedUsername) {
       setError("Username is required");
       return Toast("Username is required", "warn");
     }
-    if(username.length > 20) {
+    if(trimmedUsername.length > 20) {
       setError("Username must be 20 characters or less");
       return Toast("Username must be 20 characters or less", "warn");
     }
 
     setIsLoading(true);
     setError("");
-    socket.send(JSON.stringify({type: "join_room", payload: {roomId, username}}));
+    setUsername(trimmedUsername);
+    socket.send(JSON.stringify({type: "join_room", payload: {roomId, username: trimmedUsername }}));
   }
 
   return (
@@ -90,13 +93,14 @@ export default function UsernameModal({ setRoomId, setUsername, setOpen, usernam
         <input
           autoFocus
           type="text"
-          ref={usernameRef}
           onKeyDown={(e) => e.key === "Enter" && !isLoading && handleSubmit()}
+          onChange={(e) => setUsername(e.target.value)}
           placeholder="Enter your name...."
           disabled={isLoading}
           className="bg-white/5 border border-white/10 focus:border-red-600 focus:outline-none rounded-lg px-4 py-3 text-white text-sm placeholder-white/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ fontFamily: "'DM Mono', monospace" }}
           maxLength="20"
+          value={username}
         />
 
         {error && (
