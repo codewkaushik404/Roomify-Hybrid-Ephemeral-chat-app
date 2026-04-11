@@ -3,49 +3,70 @@ import Toast from "../components/Toast"
 import GlowOrb from "../components/ui/GlowOrb";
 import {SquareDashedMousePointer, Copyright} from "lucide-react"
 import UsernameModal from "../components/UsernameModal";
-import { useChat } from "../context/chatContext";
+import { useSetRecoilState } from "recoil";
+import { usernameAtom } from "../store/atoms/usernameAtom";
+import { existingUsersAtom } from "../store/atoms/existingUsersAtom";
+import { messagesAtom } from "../store/atoms/messagesAtom";
 
-export default function LandingPage({setRoomId, socketRef, username, setUsername, socketReady, setSocketReady}) {
+export default function LandingPage({setRoomId, socketRef, socketReady, setSocketReady}) {
   
   const inputRef = useRef(null);
-  const usernameRef = useRef(null);
   const [createdId, setCreatedId] = useState("");
   const [open, setOpen] = useState(false);
-
-  const {addMessages} = useChat();
+  const setUsername = useSetRecoilState(usernameAtom);
+  const setExistingUsers = useSetRecoilState(existingUsersAtom);
+  const setMessages = useSetRecoilState(messagesAtom);
 
   useEffect(()=>{
     if(!socketReady) return ;
     const socket = socketRef.current;
 
-    function handleMessage(event){  
-      const parsedMessage = JSON.parse(event.data);
-
+    function handleMessage(event){
+      let parsedMessage;
+      try{
+        parsedMessage = JSON.parse(event.data);
+      }catch(err){
+        console.log("Invalid data format", err.message);
+        socket.close();
+        return ;
+      }  
+      
       if(parsedMessage.type === "room_created"){
         setCreatedId(parsedMessage.payload?.roomId);
       }
 
-      else if(parsedMessage.type === "room_joined"){
-        setRoomId(parsedMessage.payload?.roomId);
+      if(parsedMessage.type === "room_joined"){
+        const {roomId, existingUsers } = parsedMessage.payload;
+        setExistingUsers(existingUsers);
+        setRoomId(roomId);
       }
 
-      else if(parsedMessage.type === "old_messages"){
+      if(parsedMessage.type === "old_messages"){
         const {messages} = parsedMessage.payload;
         if(messages.length > 0){
-          addMessages(messages, username);
+          setMessages(messages);
         }
       }
 
-      else if(parsedMessage.type === "error"){
-
+      if(parsedMessage.type === "error"){
         const {message, type} = parsedMessage.payload;
         message && Toast(message, type);
-      }   
+        return ;
+      }
+      
+      if(parsedMessage.type === "warn"){
+        const {message, type} = parsedMessage.payload;
+        message && Toast(message, type);
+        return
+      }
     }
 
     function handleClose(){
-        alert("Connection ended");
         setRoomId("");
+        setCreatedId("");
+        setExistingUsers([]);
+        setMessages([]);
+        setUsername(null);
         socketRef.current = null;
         setSocketReady(false);
     }
@@ -79,12 +100,14 @@ export default function LandingPage({setRoomId, socketRef, username, setUsername
       Toast("Room ID must be at least 5 characters", "warn");
       return;
     }
-
     setOpen(true);
   }
 
   function createRoom(){
-    if(!socketReady || !socketRef.current) return ;
+    if(!socketReady || !socketRef.current){
+      Toast("Socket not connected", "error");
+      return ;
+    }
     socketRef.current.send(JSON.stringify({type: "create_room"}));
   }
 
@@ -176,8 +199,9 @@ export default function LandingPage({setRoomId, socketRef, username, setUsername
       <GlowOrb top="50%" left="60%" color="#d97272" size="600px" />
       <GlowOrb top="40%" left="5%" color="#d97272" size="600px" />
 
-      { open && <UsernameModal setRoomId={setRoomId} setUsername={setUsername} setOpen={setOpen} 
-      usernameRef={usernameRef}  inputRef={inputRef} socketRef={socketRef} />
+      { open && <UsernameModal setRoomId={setRoomId} setOpen={setOpen} 
+      inputRef={inputRef} socketRef={socketRef} 
+      />
       }
       {/* Grid overlay */}
       <div className="absolute inset-0 grid-bg pointer-events-none" style={{ zIndex: 0 }} />
@@ -199,7 +223,7 @@ export default function LandingPage({setRoomId, socketRef, username, setUsername
       </nav>
 
       {/* Hero */}
-      <main className="relative z-10 flex flex-col items-center text-center px-6 py-12 mb-8">
+      <main className="relative z-10 flex flex-col items-center text-center px-6 py-10 mb-8">
         <div className="badge px-3 pb-1 pt-0.5 rounded-full mb-6 inline-flex items-center">
           <span className="tag-pulse text-md">Now live</span>
         </div>
@@ -216,7 +240,7 @@ export default function LandingPage({setRoomId, socketRef, username, setUsername
 
         <p className="text-lg mb-10 max-w-xl" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "'DM Mono', monospace", fontSize: "15px", lineHeight: 1.7 }}>
           Create or join ephemeral chat rooms in one tap. No accounts, no clutter —
-          just a room ID and the people you want.
+          just a room ID, Username and the people you want.
         </p>
 
         {/* Room entry */}
@@ -253,31 +277,31 @@ export default function LandingPage({setRoomId, socketRef, username, setUsername
             </p>
           
             {createdId 
-            ? (<span className="bg-gray-600 rounded-xl text-gray-400 font-semibold 
-              pt-0.5 tracking-wider px-3 text-xs">
-                {createdId}
-              </span>
-              )
-            : (<button
-                onClick={createRoom}
-                className="btn-primary text-white font-semibold px-2 py-1 rounded-lg text-xs whitespace-nowrap"
-              >
-                Create room
-              </button>
-              )
-          }
+              ? (<span className="bg-gray-600 rounded-xl text-gray-400 font-semibold 
+                pt-0.5 tracking-wider px-3 text-xs">
+                  {createdId}
+                </span>
+                )
+              : (<button
+                  onClick={createRoom}
+                  className="btn-primary text-white font-semibold px-2 py-1 rounded-lg text-xs whitespace-nowrap"
+                >
+                  Create room
+                </button>
+                )
+            }
           </div>
 
         </div>
 
         <p className="mt-4 text-xs" style={{ color: "rgba(255,255,255,0.5)", fontFamily: "'DM Mono', monospace" }}>
-          No sign-up. No trace. Rooms expire automatically.
+          No sign-up. No trace.
         </p>
       </main>
 
       {/* Footer */}
       <footer
-        className="relative z-10 border-t px-8 py-6 flex items-center justify-between"
+        className="relative z-10 border-t px-8 py-5 flex items-center justify-between"
         style={{ borderColor: "rgba(255,255,255,0.07)" }}
       >
         <div className="flex items-center gap-2">
@@ -299,6 +323,7 @@ export default function LandingPage({setRoomId, socketRef, username, setUsername
           Built for the moment.
         </span>
       </footer>
+
     </div>
   );
 }

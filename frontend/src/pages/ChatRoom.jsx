@@ -3,12 +3,31 @@ import React, { useState, useRef, useEffect} from "react";
 import Avatar from "../components/ui/Avatar";
 import {SquareDashedMousePointer, LogOut} from "lucide-react"
 import Toast from "../components/Toast";
-import { useChat } from "../context/chatContext";
+import { useRecoilState, useRecoilValue, useSetRecoilState } from "recoil";
+import { usernameAtom } from "../store/atoms/usernameAtom";
+import { existingUsersAtom } from "../store/atoms/existingUsersAtom";
+import { formattedMessages, messagesAtom } from "../store/atoms/messagesAtom";
 
-export default function ChatRoom({roomId, username, onLeave, socketRef, socketReady, setSocketReady}) {
-  const {messages, addMessages, clearMessages} = useChat();
+export default function ChatRoom({roomId, onLeave, socketRef, socketReady }) {
   const [input, setInput] = useState("");
   const bottomRef = useRef(null);
+  const username = useRecoilValue(usernameAtom);
+  const [existingUsers, setExistingUsers] = useRecoilState(existingUsersAtom);
+  const setMessages = useSetRecoilState(messagesAtom);
+  const formatted_messages = useRecoilValue(formattedMessages);
+  const roomEndedTimeoutRef = useRef(null);
+
+  function handleLeave(){
+    if(!socketReady) return ;
+    const socket = socketRef.current;
+    socket.send(JSON.stringify({type: "leave_room", payload: {roomId, username}}));
+  }
+
+  function handleClose(){
+    setExistingUsers((prev) => prev.filter(u => u !== username));
+    setMessages([]);
+    onLeave();
+  }
 
   useEffect(() => {
     if(!socketReady) return ;
@@ -18,12 +37,27 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
     function handleMessage(event){
         const parsedMessage = JSON.parse(event.data);
         if(parsedMessage.type === "new_message"){
-            const {message} = parsedMessage.payload;
-            Object.keys(message).length > 0 && addMessages([message], username);
+            const {message } = parsedMessage.payload;
+            message && Object.keys(message).length > 0 && setMessages((prev) => [...prev, message]);
         }
 
-        else if(parsedMessage.type === "left_room"){
-            handleClose();
+        else if(parsedMessage.type === "new_joinee"){
+          const {existingUsers: currentUsers} = parsedMessage.payload;
+          setExistingUsers(currentUsers);
+        }
+        
+        else if(parsedMessage.type === "room_ended"){
+            Toast("Admin ended the room", "warn");
+            roomEndedTimeoutRef.current = setTimeout(() => handleClose(), 1500);
+        }
+        
+        else if(parsedMessage.type === "room_left"){
+          handleClose();
+        }
+
+        else if(parsedMessage.type === "room_users"){
+          const { existingUsers: currentUsers} = parsedMessage.payload;
+          setExistingUsers(currentUsers);
         }
 
         else if(parsedMessage.type === "error"){
@@ -32,39 +66,25 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
         }
     }
 
-    function handleClose(){
-        alert("Connection ended");
-        clearMessages();
-        onLeave();
-        socketRef.current = null;
-        setSocketReady(false);
-    }
-
     socket.addEventListener("message", handleMessage);
-    socket.addEventListener("close", handleClose);
+    socket.addEventListener("close", handleClose)
     
     return () => { 
         socket.removeEventListener("message", handleMessage)
         socket.removeEventListener("close", handleClose);
+
+        if (roomEndedTimeoutRef.current) clearTimeout(roomEndedTimeoutRef.current);
     }
-  }, [socketReady, username, addMessages, clearMessages, onLeave]);
 
-    useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
+  }, [socketReady, username]);
 
-  function handleLeave(){
-    if(!socketReady) return ;
-    const socket = socketRef.current;
-    socket.send(JSON.stringify({type: "leave_room", payload: {roomId, username}}));
-    clearMessages();
-  }
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [formatted_messages]); 
 
   const sendMessage = () => {
     if(!socketReady) return ;
-    
     const trimmedInput = input.trim();
-    
     if(!trimmedInput) {
       Toast("Message cannot be empty", "warn");
       return;
@@ -80,7 +100,22 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
     setInput("");
   };
 
-  const existingRoomUsers = [...new Set(messages.map((m) => m.sender))];
+  function formatDateLabel(dateRaw) {
+    const today = new Date();
+
+    if (dateRaw.toDateString() === today.toDateString()) {
+      return "Today";
+    }
+
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (dateRaw.toDateString() === yesterday.toDateString()) {
+      return "Yesterday";
+    }
+
+    return dateRaw.toDateString();
+  }
 
   return (
     <div
@@ -140,7 +175,7 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
                 style={{ background: "#2A9D8F" }}
               />
               <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.3)", fontFamily: "'DM Mono', monospace" }}>
-                {existingRoomUsers?.length + 1} members online 
+                {existingUsers?.length || 0} members online 
               </span>
             </div>
           </div>
@@ -149,7 +184,7 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
         <div className="flex items-center gap-2">
           {/* Avatars */}
           <div className="hidden sm:flex items-center -space-x-1.5">
-            {(existingRoomUsers || []).map((sender) => (
+            {(existingUsers || []).map((sender) => (
               <div key={sender} className="ring-2 rounded-full" style={{ ringColor: "#0a0a0a" }}>
                 <Avatar name={sender} size={7} />
               </div>
@@ -169,14 +204,13 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
       {/* Messages area */}
         <div className="flex-1 overflow-y-auto relative grid-bg">
             <div className="flex flex-col gap-1 px-4 py-6 max-w-3xl mx-auto w-full">
-                {messages.map((m, i, arr) => {
+                {formatted_messages.map((m, i, arr) => {
                     const showAvatar = !m.self && (i === 0 || arr[i - 1].sender !== m.sender);
-
-                    // Determine if we need a date chip
-                    const prevDate = i === 0 ? null : new Date(arr[i - 1].time).toDateString();
-                    const currDate = new Date(m.time).toDateString();
+                    const currDate = m.dateString;
+                    const prevDate = i > 0 ? arr[i - 1].dateString : null;
                     const showDateChip = i === 0 || currDate !== prevDate;
-
+                    
+                    const dateChip = formatDateLabel(m.fullDate);
                     return (
                         <React.Fragment key={m.id}>
                         {showDateChip && (
@@ -189,10 +223,10 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
                                 fontFamily: "'DM Mono', monospace",
                                 }}
                             >
-                                {currDate === new Date().toDateString() ? "Today" : currDate}
+                                {dateChip}
                             </div>
                             </div>
-                        )}
+                        )}  
 
                         <div
                             className={`flex items-end gap-2 msg-in ${m.self ? "flex-row-reverse" : ""}`}
@@ -274,7 +308,7 @@ export default function ChatRoom({roomId, username, onLeave, socketRef, socketRe
         </div>
         <div className="flex items-center justify-between text-xs mt-2 max-w-3xl mx-auto">
           <p style={{ color: "rgba(255,255,255,0.5)", fontFamily: "'DM Mono', monospace" }}>
-            Press Enter to send · Room auto-expires when empty
+            Press Enter to send 
           </p>
           <p style={{ color: input.length > 450 ? "#E63946" : "rgba(255,255,255,0.3)", fontFamily: "'DM Mono', monospace" }}>
             {input.length}/500
