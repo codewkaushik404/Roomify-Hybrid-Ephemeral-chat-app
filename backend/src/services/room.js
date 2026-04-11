@@ -8,29 +8,31 @@ import syncRoomsWithRelay from "../helper/syncRooms.js";
 export const rooms = new Map();
 export let relaySocket = null;
 
-export async function initializeRelaySocket(createWebSocketClient) {
+export async function initializeRelaySocket(createFn) {
     try {
-        relaySocket = await createWebSocketClient();
+        relaySocket = await createFn();
     } catch(err) {
         console.log("Connection as client to relay_server failed");
         process.exit(1);
     }
 }
 
+function broadcast(roomId, payload){
+    if(!rooms.has(roomId)) return ;
+
+    const room = rooms.get(roomId);
+    for(const [username, socket] of room.users){
+        sendJson(socket, payload);
+    }
+}
+
 //payload : {username} 
 // relay-payload: {roomId}
 export function createRoom(socket, message){
-    
-    if (!message.payload || !message.payload.username) {
-        sendError(socket, "Username is required", "error");
-        return;
-    }
-
-    const username = message.payload.username;
     const roomId = generateUniqueRoomIds(rooms);
     rooms.set(roomId, {
         users: new Map(),
-        owner: {username, socket},
+        owner: {socket},
         createdAt: new Date(),
         setting: {private: false}
     })
@@ -54,8 +56,8 @@ export function joinRoom(socket, message){
     }
 
     const room = rooms.get(roomId);
-    if(room.owner.username === username){
-        room.owner.socket = socket; // Update socket reference on reconnect
+    if(room.owner.socket === socket){
+        room.owner.username = username
         room.users.set(username, socket);
     }
 
@@ -66,14 +68,21 @@ export function joinRoom(socket, message){
             return ;
         }
         else  room.users.set(username, socket);
-    }        
-
-    sendJson(socket, {type: "room_joined", payload: {roomId }});
-
+    }
+    
+    const existingUsers = Array.from(room.users.keys());
+    sendJson(socket, {type: "room_joined", payload: {roomId, username, existingUsers }});
+    // Broadcast to other users only
+    for(const [user, userSocket] of room.users){
+        if(userSocket !== socket){
+            sendJson(userSocket, {type: "new_joinee", payload: {existingUsers}});
+        }
+    }
+    
     fetchMessages(roomId)
     .then((messages) => {
         if(messages.length > 0){
-            sendJson(socket, {type: "old_messages", payload: {messages}} );
+            sendJson(socket, {type: "old_messages", payload: {messages, username}} );
         }
     })
     .catch((err) => {
@@ -102,7 +111,7 @@ export function sendMessage(socket, wsMessage){
 
     createMessage(roomId, username, message)
     .then((messageObj) => {
-        sendJson(relaySocket, {type: "relay_message", payload: {message: messageObj, roomId }} );
+        sendJson(relaySocket, {type: "relay_message", payload: {message: messageObj, roomId, username }} );
     }) 
     .catch ((err)=>{
         sendError(socket, "Failed to send message", "error");
@@ -112,6 +121,7 @@ export function sendMessage(socket, wsMessage){
 //payload -> {roomId, username}
 // relay-payload: {roomId}
 export function leaveRoom(socket, message){
+    
     const {roomId, username} = message.payload;
         
     if(!isValidRoom(rooms, roomId)){
@@ -130,9 +140,9 @@ export function leaveRoom(socket, message){
         deleteMessages(roomId)
         .then((deletedMessages) => {
             if(deletedMessages){
-                rooms.delete(roomId);
+                broadcast(roomId, {type: "room_ended"});
                 syncRoomsWithRelay(relaySocket, "delete_room", roomId);
-                sendJson(socket, {type: "room_left" });
+                rooms.delete(roomId);
             }
 
             else sendError(socket, "Failed to delete room", "error");
@@ -142,7 +152,10 @@ export function leaveRoom(socket, message){
         })
         return ;
     }
-
-    room.users.delete(username);
-    sendJson(socket, {type: "room_left" })
+    
+    else {
+        room.users.delete(username);
+        sendJson(socket, {type: "room_left"});
+        broadcast(roomId, {type: "room_users", payload: {existingUsers: Array.from(room.users.keys()) }});
+    }
 }
