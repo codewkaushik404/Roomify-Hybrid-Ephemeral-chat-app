@@ -2,11 +2,9 @@ import { useRef, useState, useEffect } from "react";
 import LandingPage from "./pages/LandingPage";
 import ChatRoom from "./pages/ChatRoom";
 import { ToastContainer } from "./components/Toast";
-import {ChatProvider} from "./context/chatContext"
 
 export default function App() {
   const [roomId, setRoomId] = useState("");
-  const [username, setUsername] = useState("");
   const [socketReady, setSocketReady] = useState(false);
   const [socketError, setSocketError] = useState("");
   const socketRef = useRef(null);
@@ -14,9 +12,10 @@ export default function App() {
   useEffect(()=>{
       const connectWebSocket = () => {
         try {
-          const ws = new WebSocket("ws://localhost:8000");
+          const ws = new WebSocket("ws://localhost:8000/ws");
           
           ws.onopen = () => {
+            socketRef.current = ws;
             setSocketReady(true);
             setSocketError("");
           };
@@ -34,7 +33,6 @@ export default function App() {
             setTimeout(connectWebSocket, 3000);
           };
 
-          socketRef.current = ws;
         } catch (error) {
           console.error("WebSocket connection error:", error);
           setSocketError("Failed to connect. Please refresh the page.");
@@ -69,15 +67,15 @@ export default function App() {
   }
 
   return (
-    <ChatProvider>
+    <>
       <ToastContainer />
       {roomId 
-        ? <ChatRoom roomId={roomId} username={username} onLeave={() => setRoomId("")} 
-        socketRef={socketRef} socketReady={socketReady} setSocketReady={setSocketReady}/> 
+        ? <ChatRoom roomId={roomId} onLeave={() => setRoomId("")} 
+        socketRef={socketRef} socketReady={socketReady} /> 
 
-        : <LandingPage setRoomId={setRoomId} socketRef={socketRef} username={username} setUsername={setUsername} 
+        : <LandingPage setRoomId={setRoomId} socketRef={socketRef} 
         socketReady={socketReady} setSocketReady={setSocketReady}/> 
       }
-    </ChatProvider>
+    </>
   )
 }
