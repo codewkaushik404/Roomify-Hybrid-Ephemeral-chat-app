@@ -47,7 +47,7 @@ wss.on("connection", function(socket){
         }
 
         else if(parsedMessage.type === "relay_message"){
-            const {message, roomId } = parsedMessage.payload;
+            const {message, roomId, username } = parsedMessage.payload;
 
             if(!message || !roomId){
                 return sendError(socket, "Missing roomId or message in payload", "error");
@@ -55,7 +55,7 @@ wss.on("connection", function(socket){
 
             for(const [serverSocket, roomIds] of servers){
                 if(roomIds.has(roomId)) {
-                    sendJson(serverSocket, {type: "message_relayed", payload: {message, roomId}});
+                    sendJson(serverSocket, {type: "message_relayed", payload: {message, roomId, username}});
                 }
             }   
         }

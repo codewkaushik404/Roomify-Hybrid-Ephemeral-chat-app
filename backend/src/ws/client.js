@@ -18,11 +18,11 @@ export default function createWebSocketClient(rooms){
                 }
 
                 if(parsedMessage.type === "message_relayed"){
-                    const {message, roomId} = parsedMessage.payload;
+                    const {message, roomId, username} = parsedMessage.payload;
                     const existingUsers = rooms.get(roomId)?.users;
                     if(existingUsers && existingUsers.size > 0){
                         for(const [user, userSocket] of existingUsers){
-                            sendJson(userSocket, {type: "new_message", payload: { message, roomId }});
+                            sendJson(userSocket, {type: "new_message", payload: { message, roomId, username}});
                         }
                     }
                 }
