@@ -125,7 +125,7 @@ Roomify-Hybrid-Ephemeral-chat-app/
 ├── frontend/
 │   ├── src/
 │   │   ├── components/      # Reusable UI components
-│   │   ├── context/         # Global state management
+│   │   ├── store/atoms/     # state management using recoil
 │   │   ├── pages/           # Page-level components
 │   │   ├── App.jsx          # Root React component
 │   │   ├── main.jsx         # Entry point
